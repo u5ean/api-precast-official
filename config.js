@@ -20,7 +20,7 @@ window.APP_CONFIG = {
   // Endpoints that do NOT exist yet (see BACKEND_REQUIRED.md). Leave null until the
   // backend team has built them and confirmed the response contract.
   PO_LINES_PATH: "/get-lines", // read-only PO line lookup (U6)
-  SUBMIT_PATH: "/get-lines",   // final receipt submission via get-lines (commits after create-receipt)
+  SUBMIT_PATH: "/save-lines",   // final receipt submission via get-lines (commits after create-receipt)
 
   FEATURES: {
     // Master switch for the final submit button. Also requires SUBMIT_PATH.

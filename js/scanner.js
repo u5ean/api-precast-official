@@ -58,6 +58,14 @@ export function createScanner(mountEl, { onCode }) {
       .map((n) => F[n])
       .filter((v) => v !== undefined);
     handled = false;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => setTimeout(r, 80));
+    let w = region.getBoundingClientRect().width;
+    if (!w) w = mountEl.getBoundingClientRect().width;
+    if (!w) {
+      throw new ScannerError("failed", "Scanner area has no size. Make sure it is visible before scanning.");
+    }
+    region.style.width = w + "px";
     qr = new window.Html5Qrcode(id, { formatsToSupport: formats.length ? formats : undefined, verbose: false });
     try {
       await qr.start(

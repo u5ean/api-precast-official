@@ -1,10 +1,12 @@
 // API layer for the n8n webhooks. This is the ONLY module that talks to the network.
 //
-// Response conventions differ per workflow ({success,error|errors} vs {ok,message,problems}),
-// so everything is normalised into ApiError here.
+// Response conventions differ per workflow ({success,error|errors} vs {ok,message,problems}
+// vs raw Epicor dataset), so everything is normalised into ApiError here.
+//
+// n8n often wraps the response in a one-item array: [ { ... } ]. send() unwraps it.
 //
 // Verified contracts: login, document, confirm-fields (errors only), create-receipt,
-// get-lines. PROVISIONAL (marked below): confirm-fields success, PO lines lookup.
+// get PO lines (/get-lines), submit lines. PROVISIONAL (marked below): confirm-fields success.
 
 import { state, clearSession } from "./state.js";
 
@@ -86,6 +88,9 @@ function send({ path, query, json, form, auth = true, timeoutMs, onUploadProgres
       let data = null;
       try { data = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch (_) { data = null; }
 
+      // n8n returns [ {...} ] for some workflows: unwrap the first item.
+      if (Array.isArray(data)) data = data.length ? data[0] : null;
+
       if (status === 401 && auth) {
         clearSession();
         window.dispatchEvent(new CustomEvent("gr:unauthorized"));
@@ -122,6 +127,11 @@ function send({ path, query, json, form, auth = true, timeoutMs, onUploadProgres
 }
 
 const clean = (v) => (v === null || v === undefined ? "" : String(v).trim());
+const num = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 /* ------------------------------- Login ------------------------------- */
 export async function login(username, password) {
@@ -204,31 +214,45 @@ export async function createReceiptHeader({ poNum, packSlip, vendorNum, purPoint
 /* ----------------------------- PO lines (read-only) ----------------------------- */
 export const poLinesAvailable = () => !!cfg().PO_LINES_PATH;
 
-// PROVISIONAL (U6): no read-only endpoint exists. If one is configured, it must return
-// {lines:[...]} with part number and PO line. Quantities are intentionally NOT read.
-export async function loadPoLines({ poNum, packSlip, vendorNum, purPoint }) {
+// Verified contract.
+// Request:  POST PO_LINES_PATH?poNum=..&packSlip=..&vendorNum=..   body {}
+//           (purPoint is NOT sent)
+// Response: [ { success, po_number, total_lines, lines: [ {...} ] } ]
+export async function loadPoLines({ poNum, packSlip, vendorNum }) {
   if (!poLinesAvailable()) {
-    throw new ApiError("No read-only PO line endpoint is configured (backend item U6).", { kind: "disabled" });
+    throw new ApiError("No PO line endpoint is configured (PO_LINES_PATH in config.js).", { kind: "disabled" });
   }
   const { data } = await send({
     path: cfg().PO_LINES_PATH,
-    query: { poNum, packSlip, vendorNum, purPoint },
+    query: { poNum, packSlip, vendorNum },
     json: {},
   });
-  const raw = Array.isArray(data.lines) ? data.lines : null;
-  if (!raw) throw new ApiError("The PO line response had no 'lines' list.", { kind: "contract", body: data });
+  if (data.success !== true || !Array.isArray(data.lines)) {
+    throw new ApiError("The PO line response had no 'lines' list.", { kind: "contract", body: data });
+  }
   const lines = [];
-  for (const r of raw) {
-    const part = clean(pick(r, ["part_num", "PartNum"]));
-    const lineNo = Number(pick(r, ["po_line", "POLine"]));
+  for (const r of data.lines) {
+    const part = clean(pick(r, ["part_number", "part_num", "PartNum"]));
+    const lineNo = num(pick(r, ["po_line", "POLine"]));
     if (!part || !Number.isInteger(lineNo)) continue;
-    const rel = pick(r, ["po_rel", "PORelNum"]);
+    const rel = num(pick(r, ["po_release", "po_rel", "PORelNum"]));
     lines.push({
       key: `${lineNo}-${rel ?? 0}`,
       part_num: part,
       po_line: lineNo,
-      po_rel: rel === undefined ? null : Number(rel),
+      po_rel: rel,
+      pack_line: num(r.pack_line),
       description: clean(pick(r, ["description", "LineDesc"])),
+      ordered_qty: num(r.ordered_quantity),
+      received_qty: num(r.previously_received_quantity), // already received on earlier receipts
+      available_qty: num(r.available_quantity),          // still receivable
+      unit: clean(r.unit),
+      vendor_unit: clean(r.vendor_unit),
+      warehouse: clean(r.warehouse),
+      bin: clean(r.bin),
+      inspection_required: !!r.inspection_required,
+      lot_required: !!r.lot_required,
+      serial_required: !!r.serial_required,
     });
   }
   if (!lines.length) throw new ApiError("The server returned no usable PO lines.", { kind: "contract", body: data });
@@ -244,55 +268,95 @@ export function submitAvailability() {
   return { ok: reasons.length === 0, reasons };
 }
 
-// Uses the verified /get-lines request shape. receive_all is ALWAYS sent explicitly,
-// because the backend defaults to receiving every line when it is omitted.
-export async function submitReceipt({ poNum, packSlip, vendorNum, purPoint, mode, lines }) {
+// Verified contract.
+// Request:  POST SUBMIT_PATH   body {po_number, vendor_num, pur_point, pack_slip, lines:[
+//             {part_number, po_line, po_release, pack_line, received_quantity}]}
+//           No query string, no receive_all.
+// Response: [ { parameters: { ds: { RcvHead:[...], RcvDtl:[...], ... } } } ]  (no ok flag)
+//
+// `lines` items: { part_num, po_line, po_rel, pack_line, qty, available_qty? }
+//   mode "partial": sends each line with its qty.
+//   mode "full":    sends every line with qty = available_qty (needs FEATURES.ALLOW_FULL_RECEIPT).
+export async function submitReceipt({ poNum, packSlip, vendorNum, purPoint = "", mode, lines }) {
   const avail = submitAvailability();
   if (!avail.ok) throw new ApiError(avail.reasons.join(" "), { kind: "disabled" });
 
-  let query, json;
-  if (mode === "partial") {
-    if (!Array.isArray(lines) || lines.length === 0) {
-      throw new ApiError("Add at least one part before submitting.", { kind: "disabled" });
-    }
-    for (const l of lines) {
-      if (!l.part_num || !(Number(l.qty) > 0)) {
-        throw new ApiError(`Line ${l.part_num || "(no part)"} needs a quantity above 0.`, { kind: "disabled" });
-      }
-    }
-    query = { poNum, packSlip, vendorNum, purPoint, receive_all: "false" };
-    json = {
-      receive_all: false,
-      lines: lines.map((l) => {
-        const out = { part_num: l.part_num, qty: Number(l.qty) };
-        if (l.po_line !== null && l.po_line !== undefined && l.po_line !== "") out.po_line = Number(l.po_line);
-        return out;
-      }),
-    };
-  } else if (mode === "full") {
-    if (!cfg().FEATURES.ALLOW_FULL_RECEIPT) {
-      throw new ApiError("Full receipt is switched off (FEATURES.ALLOW_FULL_RECEIPT).", { kind: "disabled" });
-    }
-    query = { poNum, packSlip, vendorNum, purPoint, receive_all: "true" };
-    json = { receive_all: true };
-  } else {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    throw new ApiError("Add at least one part before submitting.", { kind: "disabled" });
+  }
+  if (mode !== "partial" && mode !== "full") {
     throw new ApiError("Unknown receiving mode.", { kind: "disabled" });
   }
+  if (mode === "full" && !cfg().FEATURES.ALLOW_FULL_RECEIPT) {
+    throw new ApiError("Full receipt is switched off (FEATURES.ALLOW_FULL_RECEIPT).", { kind: "disabled" });
+  }
+  const vendor = Number(vendorNum);
+  if (!Number.isFinite(vendor)) {
+    throw new ApiError("The supplier number is missing or invalid.", { kind: "disabled" });
+  }
+
+  const outLines = lines.map((l, i) => {
+    const qty = mode === "full" ? Number(l.available_qty) : Number(l.qty);
+    if (!l.part_num || !(qty > 0)) {
+      throw new ApiError(
+        mode === "full"
+          ? `Line ${l.part_num || "(no part)"} has nothing left to receive.`
+          : `Line ${l.part_num || "(no part)"} needs a quantity above 0.`,
+        { kind: "disabled" }
+      );
+    }
+    const poLine = num(l.po_line);
+    if (!Number.isInteger(poLine)) {
+      throw new ApiError(`Line ${l.part_num} has no PO line number.`, { kind: "disabled" });
+    }
+    const out = {
+      part_number: l.part_num,
+      po_line: poLine,
+      pack_line: num(l.pack_line) ?? i + 1,
+      received_quantity: qty,
+    };
+    const rel = num(l.po_rel);
+    if (rel !== null) out.po_release = rel;
+    return out;
+  });
 
   const { data } = await send({
     path: cfg().SUBMIT_PATH,
-    query,
-    json,
+    json: {
+      po_number: String(poNum),
+      vendor_num: vendor,
+      pur_point: purPoint ?? "",
+      pack_slip: packSlip,
+      lines: outLines,
+    },
     timeoutMs: cfg().TIMEOUTS_MS.submit,
     outcomeSensitive: true,
   });
-  if (data.ok !== true) {
+
+  // Success = the Epicor dataset came back with a receipt header and detail rows.
+  const ds = (data.parameters && data.parameters.ds) || data.ds || null;
+  const head = ds && Array.isArray(ds.RcvHead) ? ds.RcvHead[0] : null;
+  const dtl = ds && Array.isArray(ds.RcvDtl) ? ds.RcvDtl : null;
+  const legacyOk = data.ok === true;
+  if (!legacyOk && (!head || !dtl || dtl.length === 0)) {
     throw new ApiError("The server response did not confirm the receipt.", { kind: "contract", body: data, outcomeUnknown: true });
   }
+
   return {
     message: data.message || "Receipt committed.",
-    receiveAll: !!data.receive_all,
-    lines: Array.isArray(data.lines) ? data.lines : null,
-    rcvDtlCount: Array.isArray(data.rcvDtl) ? data.rcvDtl.length : null,
+    packSlip: head ? head.PackSlip : packSlip,
+    receiptDate: head ? head.ReceiptDate : null,
+    lines: dtl
+      ? dtl.map((d) => ({
+          part_num: d.PartNum,
+          po_line: d.POLine,
+          po_rel: d.PORelNum,
+          pack_line: d.PackLine,
+          qty: d.OurQty,
+          unit: d.IUM,
+          remaining_qty: d.OurRemQty,
+        }))
+      : null,
+    rcvDtlCount: dtl ? dtl.length : null,
   };
 }

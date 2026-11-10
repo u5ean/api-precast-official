@@ -10,8 +10,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -864,
-        144
+        -848,
+        304
       ],
       "id": "63b373f4-df9f-4e46-a32e-1171f09cc0cd",
       "name": "Webhook",
@@ -58,8 +58,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        -176,
-        224
+        -192,
+        288
       ],
       "id": "c04bc1f6-f884-47e8-930d-bac9dded4b76",
       "name": "Merge"
@@ -114,65 +114,6 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "a1",
-              "name": "po_number",
-              "value": "={{ $json.query.poNum }}",
-              "type": "string"
-            },
-            {
-              "id": "a2",
-              "name": "pack_slip",
-              "value": "={{ $json.query.packSlip }}",
-              "type": "string"
-            },
-            {
-              "id": "a3",
-              "name": "vendor_num",
-              "value": "={{ $json.query.vendorNum }}",
-              "type": "string"
-            },
-            {
-              "id": "a4",
-              "name": "pur_point",
-              "value": "={{ $json.query.purPoint ?? '' }}",
-              "type": "string"
-            },
-            {
-              "id": "a5",
-              "name": "company_id",
-              "value": "APIT",
-              "type": "string"
-            },
-            {
-              "id": "a6",
-              "name": "receive_all",
-              "value": "={{ String($json.query?.receive_all ?? $json.body?.receive_all ?? 'true').toLowerCase() !== 'false' }}",
-              "type": "boolean"
-            },
-            {
-              "id": "a7",
-              "name": "lines",
-              "value": "={{ $json.body?.lines ?? [] }}",
-              "type": "array"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "6ae67137-0493-4d09-af92-2372536f28b9",
-      "name": "Normalize Input",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        304,
-        48
-      ]
-    },
-    {
-      "parameters": {
         "respondWith": "json",
         "responseBody": "{\n  \"ok\": false,\n  \"message\": \"Invalid session ID, login again\"\n}",
         "options": {
@@ -187,42 +128,6 @@
       ],
       "id": "98674545-7ca4-44b2-93bb-29e7e543cd04",
       "name": "Failed"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $json.company_id }}/Erp.BO.ReceiptSvc/CreateMassReceipts",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  ds: { PendingRcvDtl: [], RcvDtlAttrValueSet: [], LegalNumGenOpts: [], RcvDtl: [], RcvDtlAttch: [], RcvDtlTax: [], RcvDuty: [], RcvHead: [], RcvHeadAttch: [], RcvHeadTax: [], RcvMisc: [], RcvMiscTax: [], SNFormat: [], SelectedSerialNumbers: [], SupplierXRef: [] },\n  vendorNum: Number($json.vendor_num),\n  purPoint: String($json.pur_point ?? '').trim(),\n  packSlip: $json.pack_slip,\n  intQueId: '0',\n  poNum: Number($json.po_number)\n}) }}",
-        "options": {}
-      },
-      "id": "5946b49c-524f-4b3d-bca5-988f7ca7f9a0",
-      "name": "CreateMassReceipts",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        496,
-        0
-      ],
-      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -267,6 +172,89 @@
       ],
       "id": "67c5a58a-3112-4ccb-8bbe-edaa4e8d4fe2",
       "name": "Format PO Lines"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "po_number",
+              "value": "={{ $json.query.poNum }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "pack_slip",
+              "value": "={{ $json.query.packSlip }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "vendor_num",
+              "value": "={{ $json.query.vendorNum }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "pur_point",
+              "value": "={{ $json.query.pur_point }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "company_id",
+              "value": "APIT",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "341f9dd8-f204-4874-b20a-7e50e6c610e2",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $json.company_id }}/Erp.BO.ReceiptSvc/CreateMassReceipts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ds: { PendingRcvDtl: [], RcvDtlAttrValueSet: [], LegalNumGenOpts: [], RcvDtl: [], RcvDtlAttch: [], RcvDtlTax: [], RcvDuty: [], RcvHead: [], RcvHeadAttch: [], RcvHeadTax: [], RcvMisc: [], RcvMiscTax: [], SNFormat: [], SelectedSerialNumbers: [], SupplierXRef: [] },\n  vendorNum: Number($json.vendor_num),\n  purPoint: String($json.pur_point ?? '').trim(),\n  packSlip: $json.pack_slip,\n  intQueId: '0',\n  poNum: Number($json.po_number)\n}) }}",
+        "options": {}
+      },
+      "id": "1fb0b51e-c67c-4eee-a873-a323694258b4",
+      "name": "CreateMassReceipts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        -64
+      ],
+      "onError": "continueErrorOutput"
     }
   ],
   "connections": {
@@ -337,6 +325,17 @@
         ]
       ]
     },
+    "Format PO Lines": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Normalize Input": {
       "main": [
         [
@@ -356,29 +355,52 @@
             "type": "main",
             "index": 0
           }
-        ],
-        [
-          {
-            "node": "Respond Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Format PO Lines": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
         ]
       ]
     }
   },
-  "pinData": {},
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "primary-production-b7199.up.railway.app",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+          "content-length": "2",
+          "accept": "application/json",
+          "accept-encoding": "gzip, deflate, br, zstd",
+          "accept-language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+          "authorization": "Bearer 91-1794300294128-76913o9f95t",
+          "content-type": "application/json",
+          "dnt": "1",
+          "origin": "https://maroon-armadillo-782337.hostingersite.com",
+          "priority": "u=1, i",
+          "referer": "https://maroon-armadillo-782337.hostingersite.com/",
+          "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Google Chrome\";v=\"157\", \"Chromium\";v=\"157\"",
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "cross-site",
+          "x-forwarded-for": "113.211.208.198, 152.233.15.120",
+          "x-forwarded-host": "primary-production-b7199.up.railway.app",
+          "x-forwarded-proto": "https",
+          "x-railway-edge": "sin1",
+          "x-railway-request-id": "mTdhJ-nERb-piMS3oB_USg",
+          "x-real-ip": "113.211.208.198",
+          "x-request-start": "1794301758748"
+        },
+        "params": {},
+        "query": {
+          "poNum": "30030038",
+          "packSlip": "TEST-00002",
+          "vendorNum": "948"
+        },
+        "body": {},
+        "webhookUrl": "https://primary-production-b7199.up.railway.app/webhook/get-lines",
+        "executionMode": "production"
+      }
+    ]
+  },
   "meta": {
     "instanceId": "8640dda310c21a5005019935ce2eced4a2487cf16c6b332e6c074e3ec6d55a4c"
   }

@@ -81,34 +81,64 @@ export function render(root) {
 
   /* ------------------------------- Add an item ------------------------------- */
   const matchBox = h("div");
-  const scanBox = h("div");
   const part = field({ id: "part", label: "Part number", autocapitalize: "characters", spellcheck: "false" });
   const poLine = field({ id: "poline", label: "PO line (optional)", inputmode: "numeric", hint: "Only needed if the part is on more than one PO line." });
   const qty = field({ id: "qty", label: "Quantity received", inputmode: "decimal" });
   const scanBtn = h("button", { class: "btn btn-secondary btn-block", type: "button", onclick: toggleScan }, "Scan part barcode");
   const addBtn = h("button", { class: "btn btn-primary btn-block", type: "button", onclick: addItem }, "Add to receipt");
+  let scanModal = null;
+
+  function setLocked(l) {
+    chosen = l || null;
+    const locked = !!l;
+    part.input.readOnly = locked;
+    part.input.value = locked ? l.part_num : part.input.value;
+    poLine.input.readOnly = locked;
+    if (locked) poLine.input.value = String(l.po_line);
+    if (!locked) poLine.input.value = "";
+  }
+
+  function clearSelection() {
+    setLocked(null);
+    part.input.value = "";
+    poLine.input.value = "";
+    part.setError("");
+    poLine.setError("");
+    clear(matchBox);
+    part.input.focus();
+  }
 
   function drawEntryMode() {
-    poLine.el.hidden = state.poLinesStatus === "loaded";
+    const loaded = state.poLinesStatus === "loaded";
+    poLine.el.hidden = loaded && !chosen;
+    poLine.input.readOnly = !!chosen;
+    const label = poLine.el.querySelector("label");
+    if (label) label.textContent = (loaded || chosen) ? "PO line" : "PO line (optional)";
   }
 
   part.input.addEventListener("input", () => {
+    if (part.input.readOnly) return;
     chosen = null;
     part.setError("");
     clear(matchBox);
   });
 
   function pickLine(l) {
-    chosen = l;
-    part.input.value = l.part_num;
+    setLocked(l);
+    drawEntryMode();
     part.setError("");
+    clear(matchBox);
     showMatched(l);
     qty.input.focus();
   }
 
   function showMatched(l) {
     clear(matchBox);
-    matchBox.append(alertBox("ok", `Matched PO line ${l.po_line}: `, h("span", { class: "code" }, l.part_num), l.description ? ` (${l.description})` : ""));
+    matchBox.append(alertBox("ok",
+      `Matched PO line ${l.po_line}${l.po_rel ? `, release ${l.po_rel}` : ""}${l.pack_line ? `, pack line ${l.pack_line}` : ""}: `,
+      h("span", { class: "code" }, l.part_num), l.description ? ` (${l.description})` : "",
+      h("div", { class: "actions" },
+        h("button", { class: "btn btn-quiet btn-sm", type: "button", onclick: clearSelection }, "Change part/line"))));
   }
 
   function resolveEntry() {
@@ -117,14 +147,18 @@ export function render(root) {
     if (!p) return { error: "Enter or scan a part number." };
 
     if (state.poLinesStatus === "loaded") {
-      const matches = state.poLines.filter((l) => norm(l.part_num) === p);
-      if (!matches.length) return { error: `${typed} is not on PO ${r.poNumber}. Check the part number.` };
-      let line = chosen && norm(chosen.part_num) === p ? chosen : null;
-      if (!line) {
-        if (matches.length === 1) line = matches[0];
-        else return { error: "This part is on several PO lines. Choose the line.", choices: matches };
+      if (!chosen || norm(chosen.part_num) !== p) {
+        const matches = state.poLines.filter((l) => norm(l.part_num) === p);
+        if (!matches.length) return { error: `${typed} is not on PO ${r.poNumber}. Select a PO line from the list.` };
+        if (matches.length === 1) {
+          setLocked(matches[0]);
+          drawEntryMode();
+          showMatched(matches[0]);
+          return { part_num: matches[0].part_num, po_line: matches[0].po_line, po_rel: matches[0].po_rel, pack_line: matches[0].pack_line, description: matches[0].description, verified: true };
+        }
+        return { error: "This part is on several PO lines. Choose the line.", choices: matches };
       }
-      return { part_num: line.part_num, po_line: line.po_line, description: line.description, verified: true };
+      return { part_num: chosen.part_num, po_line: chosen.po_line, po_rel: chosen.po_rel, pack_line: chosen.pack_line, description: chosen.description, verified: true };
     }
 
     let lineNo = null;
@@ -134,7 +168,7 @@ export function render(root) {
       if (!Number.isInteger(n) || n <= 0) return { error: "The PO line must be a whole number above 0.", field: "poline" };
       lineNo = n;
     }
-    return { part_num: typed, po_line: lineNo, description: "", verified: false };
+    return { part_num: typed, po_line: lineNo, po_rel: null, pack_line: null, description: "", verified: false };
   }
 
   function showResolveError(res) {
@@ -161,9 +195,10 @@ export function render(root) {
       part.setError(`${res.part_num} is already on the list${res.po_line ? ` for line ${res.po_line}` : ""}. Edit its quantity below instead.`);
       return;
     }
-    state.selectedLines.push({ id: Date.now() + Math.random(), part_num: res.part_num, po_line: res.po_line, description: res.description, qty: q, verified: res.verified });
+    state.selectedLines.push({ id: Date.now() + Math.random(), part_num: res.part_num, po_line: res.po_line, po_rel: res.po_rel, pack_line: res.pack_line, description: res.description, qty: q, verified: res.verified });
     part.input.value = ""; poLine.input.value = ""; qty.input.value = "";
-    chosen = null;
+    setLocked(null);
+    drawEntryMode();
     clear(matchBox);
     toast(`Added ${res.part_num}`, "ok");
     drawSelected();
@@ -174,7 +209,15 @@ export function render(root) {
   async function toggleScan() {
     if (scanner) { await closeScanner(); return; }
     clear(matchBox);
-    scanner = createScanner(scanBox, { onCode: onScanned });
+    const region = h("div", { class: "scanner-mount" });
+    const closeBtn = h("button", { class: "btn btn-secondary btn-block", type: "button", onclick: () => closeScanner() }, "Cancel scan");
+    scanModal = h("div", { class: "scan-modal", role: "dialog", "aria-label": "Scan part barcode" },
+      h("div", { class: "scan-modal-card card stack" },
+        h("h2", { class: "card-title" }, "Scan part barcode"),
+        region,
+        closeBtn));
+    document.body.append(scanModal);
+    scanner = createScanner(region, { onCode: onScanned });
     scanBtn.textContent = "Cancel scan";
     try {
       await scanner.start();
@@ -186,22 +229,25 @@ export function render(root) {
 
   async function closeScanner() {
     const s = scanner;
+    const m = scanModal;
     scanner = null;
+    scanModal = null;
     scanBtn.textContent = "Scan part barcode";
     if (s) await s.destroy();
+    if (m) m.remove();
   }
 
   async function onScanned(code) {
     await closeScanner();
     if (destroyed) return;
-    chosen = null;
+    setLocked(null);
     part.input.value = code;
     part.setError("");
     clear(matchBox);
     if (state.poLinesStatus === "loaded") {
       const res = resolveEntry();
       if (res.error) showResolveError(res);
-      else showMatched(state.poLines.find((l) => l.po_line === res.po_line) || { po_line: res.po_line, part_num: res.part_num, description: res.description });
+      else if (chosen) showMatched(chosen);
     } else {
       matchBox.append(alertBox("info", h("span", { class: "code" }, code), " was scanned. It is used as the part number, so check it is correct. It could not be matched against the PO."));
     }
@@ -229,7 +275,11 @@ export function render(root) {
       return h("li", { class: "list-row" },
         h("div", { class: "grow" },
           h("div", { class: "strong code" }, l.part_num),
-          h("div", { class: "muted small" }, l.po_line ? `PO line ${l.po_line}` : "PO line not set"),
+          h("div", { class: "muted small" }, [
+            l.po_line ? `PO line ${l.po_line}` : "PO line not set",
+            l.po_rel ? `, release ${l.po_rel}` : "",
+            l.pack_line ? `, pack line ${l.pack_line}` : "",
+          ].join("")),
           l.verified ? null : h("span", { class: "badge badge-unknown" }, "Unverified")),
         q,
         h("button", { class: "btn btn-quiet btn-sm", type: "button", "aria-label": `Remove ${l.part_num}`,
@@ -245,7 +295,7 @@ export function render(root) {
   /* ---------------------------------- Mode ---------------------------------- */
   const addCard = h("div", { class: "card stack" },
     h("h2", { class: "card-title" }, "Add an item"),
-    scanBtn, scanBox, matchBox, part.el, poLine.el, qty.el, addBtn);
+    scanBtn, matchBox, part.el, poLine.el, qty.el, addBtn);
   const selectedCard = h("div", { class: "card" }, selectedBox);
   const modeBox = h("div");
 

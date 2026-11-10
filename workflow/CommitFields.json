@@ -1,0 +1,524 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "save-lines",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        64,
+        272
+      ],
+      "id": "afa4db92-1792-4bc5-a710-63443111a7fb",
+      "name": "Webhook",
+      "webhookId": "5c18b895-f8cc-498f-831b-50e267b4eb49"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "t0HpipGZglEd8zP1",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "/projects/zQXZJDDIVCZBWwN8/datatables/t0HpipGZglEd8zP1"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        528,
+        112
+      ],
+      "id": "1e8440b7-edbe-488e-a4b5-4e12ab2ffb13",
+      "name": "Get Session",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        752,
+        352
+      ],
+      "id": "0bb65e02-3a19-4ade-aee6-72b0c734191d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first();\nconst headers = item.json.headers ?? {};\n\nconst authHeader = headers['authorization'] ?? '';\nconst match = authHeader.match(/^Bearer\\s+(.+)$/i);\n\nreturn [{\n  json: {\n    session_id: match ? match[1].trim() : '',\n    token_present: Boolean(match)\n  },\n  binary: item.binary\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        144
+      ],
+      "id": "4dc3bdf5-c324-4a9d-8a54-ce77ba0c6182",
+      "name": "Extract Session ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f0e0f704-6129-4cdf-8b52-28c1b23d1d33",
+              "leftValue": "={{ \n  !!$json.session_id &&\n  !!$json.epicor_auth &&\n  Date.parse($json.expires_at) > Date.now()\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        960,
+        272
+      ],
+      "id": "d1a4ca52-f816-4954-821c-6bca12779dbe",
+      "name": "If",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "po_number",
+              "value": "={{ $json.body.po_number }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "pack_slip",
+              "value": "={{ $json.body.pack_slip }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "vendor_num",
+              "value": "={{ $json.body.vendor_num }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "pur_point",
+              "value": "={{ $json.body.pur_point }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "company_id",
+              "value": "APIT",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "lines",
+              "value": "={{ $json.body.lines }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ad670fb3-3691-415b-8db8-3be417db2144",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1232,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"message\": \"Invalid session ID, login again\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1232,
+        368
+      ],
+      "id": "9c06c34f-53dd-457c-b07e-c7b851a3af32",
+      "name": "Failed"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $json.company_id }}/Erp.BO.ReceiptSvc/CreateMassReceipts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ds: { PendingRcvDtl: [], RcvDtlAttrValueSet: [], LegalNumGenOpts: [], RcvDtl: [], RcvDtlAttch: [], RcvDtlTax: [], RcvDuty: [], RcvHead: [], RcvHeadAttch: [], RcvHeadTax: [], RcvMisc: [], RcvMiscTax: [], SNFormat: [], SelectedSerialNumbers: [], SupplierXRef: [] },\n  vendorNum: Number($json.vendor_num),\n  purPoint: String($json.pur_point ?? '').trim(),\n  packSlip: $json.pack_slip,\n  intQueId: '0',\n  poNum: Number($json.po_number)\n}) }}",
+        "options": {}
+      },
+      "id": "09be340f-7a0c-4537-8c97-403e1d66ff41",
+      "name": "CreateMassReceipts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1488,
+        112
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: ($json.error && $json.error.message) || $json.ErrorMessage || $json.message || 'Epicor could not load the PO lines.' }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "e0885bd7-9fd8-41fc-a6a5-c4e1f8d0f45a",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Webhook').first().json.body;\n\nconst response = $input.first().json;\nconst ds = response.parameters?.ds ?? response.ds?.ds ?? response.ds ?? response;\n\nif (!Array.isArray(ds.RcvDtl)) {\n  throw new Error(\"Receipt details not found.\");\n}\n\nif (!Array.isArray(input.lines) || input.lines.length === 0) {\n  throw new Error(\"No receipt lines submitted.\");\n}\n\nconst seen = new Set();\n\nfor (const submitted of input.lines) {\n  const quantity = Number(submitted.received_quantity);\n\n  if (!Number.isFinite(quantity) || quantity <= 0) {\n    throw new Error(`Invalid quantity for ${submitted.part_number}`);\n  }\n\n  const key = [\n    submitted.po_line,\n    submitted.po_release,\n    submitted.pack_line\n  ].join(\"-\");\n\n  if (seen.has(key)) {\n    throw new Error(`Duplicate receipt line: ${key}`);\n  }\n\n  seen.add(key);\n\n  const line = ds.RcvDtl.find(item =>\n    Number(item.POLine) === Number(submitted.po_line) &&\n    Number(item.PORelNum) === Number(submitted.po_release) &&\n    Number(item.PackLine) === Number(submitted.pack_line) &&\n    item.PartNum === submitted.part_number\n  );\n\n  if (!line) {\n    throw new Error(`Part not found: ${submitted.part_number}`);\n  }\n\n  const available = Number(line.OurRemQty ?? 0);\n\n  if (quantity > available) {\n    throw new Error(\n      `${line.PartNum}: quantity exceeds available quantity (${available}).`\n    );\n  }\n\n  if (line.IUM !== line.PUM) {\n    throw new Error(\n      `${line.PartNum}: different vendor and inventory UOM. Conversion is required.`\n    );\n  }\n\n  line.OurQty = quantity;\n  line.InputOurQty = quantity;\n  line.ThisTranQty = quantity;\n  line.VendorQty = quantity;\n}\n\nreturn [{\n  json: {\n    vendor_num: input.vendor_num,\n    pur_point: input.pur_point ?? \"\",\n    pack_slip: input.pack_slip,\n    parameters: {\n      ds: ds\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        128
+      ],
+      "id": "908dbb1b-64b4-4251-9eed-40f035bfe627",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $('Normalize Input').item.json.company_id }}/Erp.BO.ReceiptSvc/CommitRcvDtl",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    vendorNum: Number($json.vendor_num),\n    purPoint: String($json.pur_point ?? '').trim(),\n    packSlip: $json.pack_slip,\n    ds: $json.parameters.ds\n  }\n}}",
+        "options": {}
+      },
+      "id": "1341b5e8-523d-498e-afc0-be1583da1f80",
+      "name": "CommitRcvDtl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2368,
+        112
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: ($json.error && $json.error.message) || $json.ErrorMessage || $json.message || 'CommitRcvDtl Issue' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "35209c60-b968-4a56-9ca6-677a22d76027",
+      "name": "Respond Error3",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2720,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Goods receipt saved successfully.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2960,
+        96
+      ],
+      "id": "96329ee0-6d29-41bb-944b-a07064e0eab7",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const ds = item.json.parameters.ds;\n\n  ds.RcvHead = (ds.RcvHead || []).map(h => ({\n    ...h,\n    Received: true,\n    RowMod: h.RowMod || 'U'\n  }));\n\n  ds.RcvDtl = (ds.RcvDtl || []).map(r => ({\n    ...r,\n    Selected: true,\n    Received: true\n  }));\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        128
+      ],
+      "id": "45b9fbff-1de7-43b9-acb4-5112b95a0e06",
+      "name": "Selected and received lines"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Session ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Session ID": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "CreateMassReceipts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CreateMassReceipts": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Selected and received lines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CommitRcvDtl": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selected and received lines": {
+      "main": [
+        [
+          {
+            "node": "CommitRcvDtl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "primary-production-b7199.up.railway.app",
+          "user-agent": "PostmanRuntime/2.14.0",
+          "content-length": "402",
+          "accept": "*/*",
+          "accept-encoding": "gzip, deflate, br",
+          "authorization": "Bearer 42-1793720005119-na4pwzjalwl",
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "postman-token": "de2e86ea-3381-48de-a75a-3492c60e2ba0",
+          "x-forwarded-for": "32.197.83.155, 152.233.15.121",
+          "x-forwarded-host": "primary-production-b7199.up.railway.app",
+          "x-forwarded-proto": "https",
+          "x-railway-edge": "jfk1",
+          "x-railway-request-id": "rzg5YCjzQlmj1JjhDcO5xA",
+          "x-real-ip": "32.197.83.155",
+          "x-request-start": "1793892793464"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "po_number": "30030038",
+          "vendor_num": 948,
+          "pur_point": "",
+          "pack_slip": "TEST-00002",
+          "lines": [
+            {
+              "part_number": "CHEM/IFL3",
+              "po_line": 1,
+              "po_release": 1,
+              "pack_line": 1,
+              "received_quantity": 150
+            },
+            {
+              "part_number": "CHEM/DAFK3",
+              "po_line": 2,
+              "po_release": 1,
+              "pack_line": 2,
+              "received_quantity": 250
+            }
+          ]
+        },
+        "webhookUrl": "https://primary-production-b7199.up.railway.app/webhook-test/save-lines",
+        "executionMode": "test"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "8640dda310c21a5005019935ce2eced4a2487cf16c6b332e6c074e3ec6d55a4c"
+  }
+}

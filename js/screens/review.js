@@ -1,6 +1,6 @@
 import { h, field, alertBox, setBusy, clear, todayLocal } from "../ui.js";
 import { state } from "../state.js";
-import { confirmFields, createReceiptHeader } from "../api.js";
+import { confirmFields, createReceiptHeader, loadPoLines, poLinesAvailable } from "../api.js";
 import { go } from "../nav.js";
 import { hasHeader, setHeader } from "../history.js";
 
@@ -125,19 +125,42 @@ export function render(root) {
 
   async function next() {
     if (!r.verified) return;
+    clear(errorBox);
     if (window.APP_CONFIG.FEATURES.CREATE_HEADER_STEP && !hasHeader(r.poNumber, r.packSlipNumber)) {
       setBusy(nextBtn, true, "Creating receipt…");
       try {
         await createReceiptHeader({ poNum: r.poNumber, packSlip: r.packSlipNumber, vendorNum: r.vendorNum, purPoint: r.purPoint, date: r.receiptDate });
         setHeader(r.poNumber, r.packSlipNumber);
       } catch (herr) {
+        if (herr.kind !== "auth") {
+          const box = alertBox("error", herr.message);
+          errorBox.append(box);
+        }
         setBusy(nextBtn, false);
-        const box = alertBox("error", herr.message);
-        errorBox.append(box);
         return;
       }
-      setBusy(nextBtn, false);
     }
+
+    if (poLinesAvailable()) {
+      setBusy(nextBtn, true, "Loading PO lines…");
+      state.poLinesStatus = "loading";
+      try {
+        state.poLines = await loadPoLines({ poNum: r.poNumber, packSlip: r.packSlipNumber, vendorNum: r.vendorNum, purPoint: r.purPoint });
+        state.poLinesStatus = "loaded";
+        state.poLinesMessage = "";
+      } catch (err) {
+        if (err.kind === "auth") {
+          setBusy(nextBtn, false);
+          return;
+        }
+        state.poLinesStatus = "error";
+        state.poLinesMessage = err.message;
+      }
+    } else {
+      state.poLinesStatus = "unavailable";
+    }
+
+    setBusy(nextBtn, false);
     go("lines");
   }
 

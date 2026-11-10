@@ -61,7 +61,11 @@ export function render(root) {
     : h("ul", { class: "list" }, state.selectedLines.map((l) => h("li", { class: "list-row" },
         h("div", { class: "grow" },
           h("div", { class: "strong code" }, l.part_num),
-          h("div", { class: "muted small" }, l.po_line ? `PO line ${l.po_line}` : "PO line not set"),
+          h("div", { class: "muted small" }, [
+            l.po_line ? `PO line ${l.po_line}` : "PO line not set",
+            l.po_rel ? `, release ${l.po_rel}` : "",
+            l.pack_line ? `, pack line ${l.pack_line}` : "",
+          ].join("")),
           l.verified ? null : h("span", { class: "badge badge-unknown" }, "Unverified")),
         h("div", { class: "qty" }, String(l.qty)))));
 

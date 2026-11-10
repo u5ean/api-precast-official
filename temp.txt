@@ -1,0 +1,55 @@
+[
+  {
+    "headers": {
+      "host": "primary-production-b7199.up.railway.app",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+      "content-length": "246",
+      "accept": "application/json",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "accept-language": "en-US,en;q=0.9",
+      "authorization": "Bearer 135-1794308308974-ewj4bzva5hp",
+      "content-type": "application/json",
+      "dnt": "1",
+      "origin": "https://maroon-armadillo-782337.hostingersite.com",
+      "priority": "u=1, i",
+      "referer": "https://maroon-armadillo-782337.hostingersite.com/",
+      "sec-ch-ua": "\"Not-A.Brand\";v=\"99\", \"Google Chrome\";v=\"157\", \"Chromium\";v=\"157\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "cross-site",
+      "x-forwarded-for": "113.211.208.198, 152.233.68.97",
+      "x-forwarded-host": "primary-production-b7199.up.railway.app",
+      "x-forwarded-proto": "https",
+      "x-railway-edge": "sin1",
+      "x-railway-request-id": "LkNX_zNoQ1q1A9_iV7rehQ",
+      "x-real-ip": "113.211.208.198",
+      "x-request-start": "1794310117290"
+    },
+    "params": {},
+    "query": {},
+    "body": {
+      "po_number": "30030038",
+      "vendor_num": 948,
+      "pur_point": "",
+      "pack_slip": "TEST-00002",
+      "lines": [
+        {
+          "part_number": "CHEM/DAFK3",
+          "po_line": 2,
+          "pack_line": 1,
+          "received_quantity": 50
+        },
+        {
+          "part_number": "CHEM/IFL3",
+          "po_line": 1,
+          "pack_line": 2,
+          "received_quantity": 50
+        }
+      ]
+    },
+    "webhookUrl": "https://primary-production-b7199.up.railway.app/webhook/save-lines",
+    "executionMode": "production"
+  }
+]

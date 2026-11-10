@@ -30,10 +30,13 @@
 - [/] CreateReceipts success response no longer references AutoSetToLocation
 - [/] OnChangeDtlPOSelected gets real poNum (not "0")
 - [/] Error branches return { success:false, error } / { ok:false, message }
-- [ ] get-lines
-- [ ] commit-lines
-- [ ] update front end correct body for commit-lines
-- [ ] correct the OCR and Scan barcode function
+- [/] get-lines
+- [/] commit-lines
+- [/] update front end correct body for commit-lines
+- [/] Fix items to be added must be follow PO Line
+- [/] Fix commit output
+- [ ] correct the OCR function
+- [ ] correct the Scan barcode function
 
 ## Step 6 — Phone test
 - [ ] Open in Chrome (Android) / Safari (iPhone) → Add to Home Screen
