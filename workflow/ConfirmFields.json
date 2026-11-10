@@ -1,0 +1,530 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error\": \"Invalid session ID, login again\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        288,
+        272
+      ],
+      "id": "a68957b6-3d8c-48e9-9102-a5d5f197c591",
+      "name": "Failed"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').first().json.body ?? {};\nconst po = String(body.po_number ?? '').trim();\nconst ps = String(body.pack_slip_number ?? '').trim();\nconst errors = {};\nif (!po) errors.po_number = 'Enter the PO number.';\nif (!ps) errors.pack_slip_number = 'Enter the DO number.';\nreturn [{ json: { po_number: po, pack_slip_number: ps, errors } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        -32
+      ],
+      "id": "793f6a48-8e83-4c33-be79-2037fa9f90a4",
+      "name": "Normalize"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c31c0329-a2c0-4aff-93f8-a60a71bbbb65",
+              "leftValue": "={{ Object.keys($json.errors).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        -32
+      ],
+      "id": "2b3780df-b606-45bd-b263-5bd7a7d8ce5c",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://seasiadtpilot05.epicorsaas.com/saas558pilot/api/v2/odata/APIT/Erp.BO.ReceiptSvc/ValidatePONum",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "poNum",
+              "value": "={{ Number($json.po_number) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        768,
+        -176
+      ],
+      "id": "a9ef7f4b-8b1e-4f14-ac60-0dd88af1040c",
+      "name": "ValidatePONum",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "confirm-fields",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -944,
+        224
+      ],
+      "id": "086c3778-0bf4-412d-be2d-e03cbf211d65",
+      "name": "Webhook",
+      "webhookId": "5c18b895-f8cc-498f-831b-50e267b4eb49"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "t0HpipGZglEd8zP1",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "/projects/y3J7sLEIlYu3Gxrl/datatables/t0HpipGZglEd8zP1"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -464,
+        80
+      ],
+      "id": "60ddc734-a462-44db-a105-1effd5600b95",
+      "name": "Get Session",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -192,
+        192
+      ],
+      "id": "05aaf34a-f195-4f1b-b038-e65706e3498f",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first();\nconst headers = item.json.headers ?? {};\n\nconst authHeader = headers['authorization'] ?? '';\nconst match = authHeader.match(/^Bearer\\s+(.+)$/i);\n\nreturn [{\n  json: {\n    session_id: match ? match[1].trim() : '',\n    token_present: Boolean(match)\n  },\n  binary: item.binary\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        64
+      ],
+      "id": "ec14bfce-8ed0-4b2b-906a-a0ac4b45ed3e",
+      "name": "Extract Session ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f0e0f704-6129-4cdf-8b52-28c1b23d1d33",
+              "leftValue": "={{ \n  !!$json.session_id &&\n  !!$json.epicor_auth &&\n  Date.parse($json.expires_at) > Date.now()\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        32,
+        80
+      ],
+      "id": "abc0d2ef-58d8-4b3c-b238-1293f67749a1",
+      "name": "If",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: { po_number: \"PO \" + $('Normalize').first().json.po_number + \" not exist.\" } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "caff68ba-e0d3-41ac-9072-68aa6b5184d5",
+      "name": "Respond PO Error"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: $json.errors }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        784,
+        112
+      ],
+      "id": "16e48cba-df49-4b22-95d8-0986f122b310",
+      "name": "Respond Fields Error"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: { po_number: \"PO \" + $('Normalize').first().json.po_number + \" details cant be found.\" } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1296,
+        -80
+      ],
+      "id": "610b7268-cec5-4acc-929a-848a96dcc15c",
+      "name": "Get PO Details Fail"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://seasiadtpilot05.epicorsaas.com/saas558pilot/api/v2/odata/APIT/Erp.BO.ReceiptSvc/ValidatePONum",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vendorNum",
+              "value": "={{ Number($('PO Lookup').first().json.value[0].VendorNum) }}"
+            },
+            {
+              "name": "purPoint",
+              "value": "={{ $('PO Lookup').first().json.value[0].PurPoint ?? '' }}"
+            },
+            {
+              "name": "packSlip",
+              "value": "={{ $('Normalize').first().json.pack_slip_number }}"
+            },
+            {
+              "name": "poNum",
+              "value": "={{ $('PO Lookup').first().json.value[0].PONum}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1280,
+        -288
+      ],
+      "id": "90fbcac7-7eea-4ade-b032-45e0c82a1fdf",
+      "name": "ExistsRcvHead",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://seasiadtpilot05.epicorsaas.com/saas558pilot/api/v2/odata/APIT/Erp.BO.POSvc/POes",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "$filter",
+              "value": "=PONum eq {{ $('Normalize').first().json.po_number }}"
+            },
+            {
+              "name": "$select",
+              "value": "PONum,VendorNum,PurPoint"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1024,
+        -240
+      ],
+      "id": "bb03b3be-91ec-44ae-a8d9-c0ae15539997",
+      "name": "PO Lookup",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: { po_number: \"PO \" + $('Normalize').first().json.po_number + \" Epicor Error.\" } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1536,
+        -160
+      ],
+      "id": "f18409e0-10a2-485e-b87c-741e14c17c2d",
+      "name": "Respond Epicor Error"
+    }
+  ],
+  "connections": {
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "ValidatePONum",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Fields Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ValidatePONum": {
+      "main": [
+        [
+          {
+            "node": "PO Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond PO Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Session ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Session ID": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ExistsRcvHead": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respond Epicor Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PO Lookup": {
+      "main": [
+        [
+          {
+            "node": "ExistsRcvHead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get PO Details Fail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "5827ba7f7e34d10ebe0dfa832c08e7382ad9ca59cd612f86da3fd8ba0e23d914"
+  }
+}

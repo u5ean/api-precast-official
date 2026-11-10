@@ -1,0 +1,253 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://seasiadtpilot05.epicorsaas.com/saas558pilot/api/v2/odata/API/Ice.BO.UserFileSvc/GetCurrentUserId",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authHeader }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -144,
+        0
+      ],
+      "id": "27e4b4a6-ee8e-4d8e-a195-04be5b4619ee",
+      "name": "Verify User & Fetch Username",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const username = $json.body.username;\nconst password = $json.body.password;\n\nconst authHeader = 'Basic ' + Buffer.from(username + ':' + password).toString('base64');\n\nreturn {\n  json: {\n    ...$json,\n    authHeader\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        0
+      ],
+      "id": "7dca0981-952a-4418-b2a1-0ad3e9c59b58",
+      "name": "Base64 Authentication"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "99b833aa-42c9-410f-bea2-85ff89a61a82",
+      "name": "Receive Login",
+      "webhookId": "accead08-fd5b-4389-b3b7-06d4d86f9c11"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst loginData = $('Base64 Authentication').first().json;\nconst epicorResult = $input.first().json;\n\nconst sessionId = `${$execution.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;\n\nreturn [{\n  json: {\n    session_id: sessionId,\n    username: epicorResult.returnObj,\n    epicor_auth: loginData.authHeader.replace(/^Basic\\s+/i, ''),\n    expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -112
+      ],
+      "id": "e4bfb2a7-8b13-4917-b073-38aa7cd86dcc",
+      "name": "Generate Session ID"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+"value": "t0HpipGZglEd8zP1",
+            "mode": "list",
+            "cachedResultName": "Sessions",
+            "cachedResultUrl": "/projects/y3J7sLEIlYu3Gxrl/datatables/t0HpipGZglEd8zP1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $json.session_id }}",
+            "username": "={{ $json.username }}",
+            "expires_at": "={{ $json.expires_at }}",
+            "epicor_auth": "={{ $json.epicor_auth }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "epicor_auth",
+              "displayName": "epicor_auth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "expires_at",
+              "displayName": "expires_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        336,
+        -112
+      ],
+      "id": "eca49188-d677-42ed-b058-37341124be98",
+      "name": "Insert row"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: true,\n  session_id: $json.session_id,\n  expires_at: $json.expires_at\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        -112
+      ],
+      "id": "b241bd4d-b1a5-4728-80e0-9b4c149bc4fe",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Invalid username or password\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        160,
+        128
+      ],
+      "id": "cc659d6a-ca52-41e7-83ab-602c90a5284e",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "connections": {
+    "Verify User & Fetch Username": {
+      "main": [
+        [
+          {
+            "node": "Generate Session ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base64 Authentication": {
+      "main": [
+        [
+          {
+            "node": "Verify User & Fetch Username",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Login": {
+      "main": [
+        [
+          {
+            "node": "Base64 Authentication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Session ID": {
+      "main": [
+        [
+          {
+            "node": "Insert row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert row": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "8640dda310c21a5005019935ce2eced4a2487cf16c6b332e6c074e3ec6d55a4c"
+  }
+}

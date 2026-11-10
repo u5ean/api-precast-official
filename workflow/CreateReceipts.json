@@ -1,0 +1,544 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-receipt",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        4800,
+        2608
+      ],
+      "id": "049ae325-36a7-473e-a063-f6ffef98a2b4",
+      "name": "Webhook",
+      "webhookId": "5c18b895-f8cc-498f-831b-50e267b4eb49"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "t0HpipGZglEd8zP1",
+          "mode": "list",
+          "cachedResultName": "Sessions",
+          "cachedResultUrl": "/projects/y3J7sLEIlYu3Gxrl/datatables/t0HpipGZglEd8zP1"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        5248,
+        2544
+      ],
+      "id": "27b82b37-d7d3-4a01-a16a-01065d7ed817",
+      "name": "Get Session",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5472,
+        2608
+      ],
+      "id": "57f6798c-3d2a-47e7-bc6e-0cf96522431f",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first();\nconst headers = item.json.headers ?? {};\n\nconst authHeader = headers['authorization'] ?? '';\nconst match = authHeader.match(/^Bearer\\s+(.+)$/i);\n\nreturn [{\n  json: {\n    session_id: match ? match[1].trim() : '',\n    token_present: Boolean(match)\n  },\n  binary: item.binary\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5024,
+        2544
+      ],
+      "id": "4bec6b85-5761-4f12-9874-5d3a64e08467",
+      "name": "Extract Session ID"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f0e0f704-6129-4cdf-8b52-28c1b23d1d33",
+              "leftValue": "={{ \n  !!$json.session_id &&\n  !!$json.epicor_auth &&\n  Date.parse($json.expires_at) > Date.now()\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5696,
+        2608
+      ],
+      "id": "38a13648-7cb9-419f-840e-ca0fb1f6df52",
+      "name": "If",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "po_number",
+              "value": "={{ $json.query.poNum }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "pack_slip",
+              "value": "={{ $json.query.packSlip }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "vendor_num",
+              "value": "={{ $json.query.vendorNum }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "entry_person",
+              "value": "={{ $json.username }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "receipt_date",
+              "value": "={{ $json.body.date || $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "company_id",
+              "value": "APIT",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "pur_point",
+              "value": "={{ $json.query.purPoint ?? '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c8075a79-05b5-4192-b746-d9599ecd76e1",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5920,
+        2512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.returnObj === true }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "d2ab444f-801e-4fe9-be9a-afd4808586a6",
+      "name": "Already exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        6368,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: 'Pack slip already received.' }) }}",
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "34baaeac-44aa-41ee-ab81-6f05890048b5",
+      "name": "Respond Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        6592,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: ($json.ErrorMessage || ($json.error && $json.error.message) || $json.message || 'Epicor rejected the receipt.') }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "d8d3d21d-b597-4f06-833e-1db144c43be9",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        7248,
+        2656
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error\": \"Invalid session ID, login again\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        5920,
+        2704
+      ],
+      "id": "917f56c6-47bf-4d00-b880-862a653701d4",
+      "name": "Failed"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://seasiadtpilot05.epicorsaas.com/saas558pilot/api/v2/odata/APIT/Erp.BO.ReceiptSvc/ExistsRcvHead",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  vendorNum: Number($json.vendor_num),\n  purPoint: String($json.pur_point ?? '').trim() || null,\n  packSlip: $json.pack_slip,\n  poNum: Number($json.po_number)\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6144,
+        2512
+      ],
+      "id": "b5aae0dc-3e53-485f-ac47-475427b75236",
+      "name": "ExistsRcvHead",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: 'Could not check pack slip ' + $('Normalize Input').item.json.pack_slip + ' in Epicor.' }) }}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        6368,
+        2608
+      ],
+      "id": "b1928836-5420-43b4-994b-0d3c5a46b8c8",
+      "name": "Respond Epicor Error"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  ok: true,\n  message: 'Pack slip ' + $('Normalize Input').item.json.pack_slip + ' saved.',\n  pack_slip: $('Normalize Input').item.json.pack_slip,\n  po_number: $('Normalize Input').item.json.po_number,\n  vendor_num: $('Normalize Input').item.json.vendor_num,\n  lines: ((($json.parameters && $json.parameters.ds && $json.parameters.ds.RcvDtl)\n    || $('AutoSetToLocation').item.json.parameters.ds.RcvDtl) || []).map(l => ({\n      pack_line: l.PackLine,\n      po_line: l.POLine,\n      po_rel: l.PORelNum,\n      part_num: l.PartNum,\n      description: l.LineDesc,\n      our_qty: l.OurQty,\n      vendor_qty: l.VendorQty,\n      received: l.Received === true\n    }))\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9f31f2d4-9451-4d89-a850-c6bb2939b058",
+      "name": "Respond To Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        7328,
+        2416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $('Normalize Input').item.json.company_id }}/Erp.BO.ReceiptSvc/GetNewRcvHeadWithPONum",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  ds: { RcvHead: [], RcvDtl: [], PendingRcvDtl: [], SelectedSerialNumbers: [] },\n  vendorNum: Number($('Normalize Input').item.json.vendor_num),\n  purPoint: String($('Normalize Input').item.json.pur_point ?? '').trim() || null,\n  packSlip: $('Normalize Input').item.json.pack_slip,\n  poNum: Number($('Normalize Input').item.json.po_number)\n}) }}",
+        "options": {}
+      },
+      "id": "bdda109d-803f-40b6-adaa-37257ec3749c",
+      "name": "GetNewRcvHeadWithPONum",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6592,
+        2512
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://seasiadtpilot05.epicorsaas.com/SaaS558Pilot/api/v2/odata/{{ $('Normalize Input').item.json.company_id }}/Erp.BO.ReceiptSvc/Update",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "ZCuQii8nCXyEyfdUhcEVJHeeJGikviWRZjmoW6inP1UTZ"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ $('Get Session').first().json.epicor_auth }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const n = $('Normalize Input').item.json;\n  const ds = $('GetNewRcvHeadWithPONum').item.json.parameters.ds;\n  const purPoint = String(n.pur_point ?? '').trim();\n  ds.RcvHead = (ds.RcvHead || []).map(h => ({\n    ...h,\n    VendorNum: Number(n.vendor_num),\n    PurPoint: purPoint || h.PurPoint || '',\n    PackSlip: n.pack_slip,\n    PONum: Number(n.po_number),\n    ReceiptDate: n.receipt_date,\n    EntryPerson: n.entry_person\n  }));\n  return JSON.stringify({ ds });\n})() }}",
+        "options": {}
+      },
+      "id": "540557cc-3e0c-4cfb-8dc3-b25f4b8f44bf",
+      "name": "SaveHeader",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6864,
+        2352
+      ],
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Session ID",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Session ID": {
+      "main": [
+        [
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "ExistsRcvHead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already exists?": {
+      "main": [
+        [
+          {
+            "node": "Respond Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GetNewRcvHeadWithPONum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ExistsRcvHead": {
+      "main": [
+        [
+          {
+            "node": "Already exists?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Epicor Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetNewRcvHeadWithPONum": {
+      "main": [
+        [
+          {
+            "node": "SaveHeader",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SaveHeader": {
+      "main": [
+        [
+          {
+            "node": "Respond To Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "5827ba7f7e34d10ebe0dfa832c08e7382ad9ca59cd612f86da3fd8ba0e23d914"
+  }
+}
